@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "description": "Source-only interpreter for the SLRR Java dialect",
   "type": "module",
-  "files": ["dist", "README.md", "examples"],
+  "files": [
+    "dist",
+    "README.md",
+    "examples"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -14,11 +18,15 @@
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && tsx --test tests/*.test.ts",
     "example": "npm run build && tsx examples/basic.ts",
+    "example:game": "tsx examples/color-bank.ts",
     "prepare": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "dependencies": {
+    "slrr-jvm-compiler": "github:nedobylskiy/SLRR-JVM-compiler#c2adfc3"
   }
 }

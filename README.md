@@ -1,8 +1,8 @@
 # SLRR-JVM
 
-**SLRR-JVM interprets selected methods directly from original Street Legal Racing: Redline `.java` source files. It does not execute `.class` bytecode.** In particular, the game's TUFA `.class` format is outside this package. No conversion from `.class` to JavaScript or standard JVM bytecode takes place.
+**SLRR-JVM interprets original Street Legal Racing: Redline `.java` source files. It does not execute `.class` bytecode.** In particular, the game's TUFA `.class` format is outside this package. No conversion from `.class` to JavaScript or standard JVM bytecode takes place.
 
-This is an early TypeScript runtime for the Java dialect found in SLRR scripts. It parses selected method bodies and executes them with a step budget and explicit host capabilities. The project is being developed separately from the game-specific renderer, physics, menu, and asset loaders in [SLRR_rev](https://github.com/nedobylskiy/SLRR_rev).
+This is an early TypeScript runtime for the Java dialect found in SLRR scripts. It uses the source parser from [SLRR-JVM-compiler](https://github.com/nedobylskiy/SLRR-JVM-compiler), then executes the parsed source AST with a step budget and explicit host capabilities. The project is being developed separately from the game-specific renderer, physics, menu, and asset loaders in [SLRR_rev](https://github.com/nedobylskiy/SLRR_rev).
 
 ## Try it
 
@@ -15,6 +15,14 @@ npm run example
 ```
 
 The example prints `13`. It loads the included synthetic [`Main.java`](examples/java/Main.java), resolves its [`Helper.java`](examples/java/Helper.java) import, and runs a host-registered native function. The example files are small fixtures; **original SLRR game files are not distributed here**. Supply `.java` files from your own installation through the same callbacks.
+
+To execute a class from a real game source, pass your installed `MainMenu.java` to the ColorBank example:
+
+```sh
+npm run example:game -- "C:/path/to/Street Legal Racing Redline/sl/Scripts/game/src/MainMenu.java"
+```
+
+This loads the `ColorBank` class from that multi-class source, runs its constructor and `getColor()` method, and prints four colors. It reads the `.java` file directly; no `.class` is involved.
 
 ## Embedding API
 
@@ -35,7 +43,9 @@ const jvm = new SlrrJvm({
     return path ? { path } : null;
   },
   readSource: path => readFile(path, 'utf8'),
-  selectMethods: className => className === 'demo.Main' ? ['run'] : ['twice']
+  // Optional: omit to expose every method in the source file.
+  selectMethods: className => className === 'demo.Main' ? ['run'] : ['twice'],
+  floatMode: 'B' // Build 940 float-literal conversion
 });
 
 jvm.natives.register('demo.HostMath', 'offset', [], () => jv('int', 3));
@@ -46,15 +56,18 @@ const result = jvm.invoke(main, 'run', [jv('int', 5)]);
 console.log(result.value); // 13
 ```
 
-[`examples/basic.ts`](examples/basic.ts) contains a runnable Node.js version of this example. `resolveImport` receives the fully qualified Java class name and optional `importedBy` path. It returns `{ path }`, optionally with `{ source }`; `readSource` is only needed when the resolver does not supply source text. Explicit imports are loaded before method execution, so execution itself is synchronous. A separate `SlrrJvm` instance can use a different resolver to run sources from another game version or mod.
+[`examples/basic.ts`](examples/basic.ts) contains a runnable Node.js version of this example. `resolveImport` receives the fully qualified Java class name and optional `importedBy` path. It returns `{ path }`, optionally with `{ source }`, or `null` when that candidate has no source. `readSource` is only needed when the resolver does not supply source text. Explicit imports and classes referenced through wildcard imports are loaded before method execution, so execution itself is synchronous. A separate `SlrrJvm` instance can use a different resolver to run sources from another game version or mod.
 
 Native methods are **opt-in** host callbacks registered by class, method, and exact argument types. The interpreter exposes no ambient filesystem, DOM, network, or SLRR engine APIs. The embedding application decides which capabilities to provide. Missing imports and native calls raise errors rather than silently succeeding.
 
+Host-native objects can be created from Java `new` expressions by registering a method named `<init>` for that class. The constructor callback returns a `JavaValue`; subsequent calls on that value dispatch to other registered methods of the same class.
+
 ## Current limits
 
-- The parser deliberately accepts a subset of the SLRR Java dialect. Callers select methods to parse because unrelated methods in the same original file may still contain unsupported syntax.
-- Explicit imports are supported through the callback. Wildcard and static imports are not yet supported.
-- Full Java overload resolution, class initialization, a standard library, threads, and the complete SLRR native API are not implemented.
+- The shared parser accepts the 3,453 `.java` files currently visible in one Build 940 installation (the original `MainMenu.java` is temporarily renamed for a separate compiler runtime test). It yields 3,499 classes and 5,952 method bodies. Parsing does not imply every method can execute with the current host bindings.
+- A local execution check ran the original `ColorBank` class inside `MainMenu.java` and reproduced its color values at indices 0, 1, 23, and 37. This is a narrow runtime check, separate from the compiler's original-VM test.
+- Explicit and wildcard imports use the callback. Wildcard candidates are inferred from source references; a resolver must return `null` for candidates it cannot supply. Static imports are not supported.
+- The interpreter supports source constructors, `super(...)`, `this(...)`, native constructors, static field initialization, common overloads, short-circuit expressions, `switch`, `do/while`, `for`, and resource literals. Full Java overload resolution, some class initialization edge cases, a standard library, threads, and the complete SLRR native API remain incomplete. Unbound native calls fail explicitly.
 - The runtime is **source-only**. TUFA `.class` parsing and bytecode execution are not part of this package.
 
 `npm run build` produces ESM JavaScript and TypeScript declarations in `dist/`. `npm pack --dry-run` shows the files included in a package archive. The package has not been published to the npm registry.
