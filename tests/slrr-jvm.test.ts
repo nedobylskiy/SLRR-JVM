@@ -408,6 +408,19 @@ test('an explicit super call reaches implicit java.lang.Object', async () => {
   assert.equal(jvm.construct('java.lang.Native', []).type, 'Native');
 });
 
+test('a decompiled super call can select a grandparent constructor', async () => {
+  const source = `package demo;
+    class Base { int value; Base(int left, int right) { value = left + right; } }
+    class Middle extends Base { int marker = 9; Middle(int value) { super(value, 1); } }
+    class Child extends Middle { Child() { super(2, 3); } }`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className.startsWith('demo.')
+    ? { path: 'Types.java', source } : null });
+  await jvm.loadClass('demo.Child');
+  const child = await jvm.constructAsync('demo.Child', []);
+  assert.equal(jvm.get(child, 'value').value, 5);
+  assert.equal(jvm.get(child, 'marker').value, 9);
+});
+
 test('a resource literal exposes its type ID to source constructors', async () => {
   const source = 'package demo; class Main { int read() { ResourceRef ref = system:0x1br; return ref.typeID; } }';
   const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main' ? { path: 'Main.java', source } : null });
