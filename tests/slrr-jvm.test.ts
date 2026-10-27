@@ -60,6 +60,24 @@ test('async native suspends Java expressions and resumes with its resolved value
   assert.throws(() => jvm.invoke(main, 'run'), /Async Java native requires invokeAsync/);
 });
 
+test('concurrent Java threads waiting on natives do not exhaust the call-depth guard', async () => {
+  const source = `package demo; import demo.Remote;
+    class Main { int run() { Remote.pause(); return 7; } }`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main'
+    ? { path: 'Main.java', source } : null, maxDepth: 8 });
+  const waiters: Array<() => void> = [];
+  jvm.natives.registerAsync('demo.Remote', 'pause', [], () => new Promise(resolve => {
+    waiters.push(() => resolve(jv('void', undefined)));
+  }));
+  await jvm.loadClass('demo.Main');
+  const main = await jvm.constructAsync('demo.Main', []);
+  const runs = Array.from({ length: 20 }, () => jvm.invokeAsync(main, 'run'));
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(waiters.length, 20);
+  for (const resume of waiters) resume();
+  assert.deepEqual((await Promise.all(runs)).map(result => result.value), Array(20).fill(7));
+});
+
 test('async native failure retains Java source location', async () => {
   const source = `package demo; import demo.Remote;
     class Main { int run() {
