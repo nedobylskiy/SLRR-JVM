@@ -307,3 +307,23 @@ test('null can match a reference parameter in a registered native', async () => 
   await jvm.loadClass('demo.Main');
   assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 7);
 });
+
+test('a resource literal assigned to an int retains its local resource ID', async () => {
+  const source = 'package demo; class Main { static int RESOURCEID = system:0x32r; int read() { return RESOURCEID; } }';
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main' ? { path: 'Main.java', source } : null });
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'read').value, 0x32);
+});
+
+test('a native reference parameter accepts an interpreted subclass instance', async () => {
+  const source = `package demo;
+class Base {}
+class Child extends Base {}
+class Host { static native int read(Base value); }
+class Main { int run() { return Host.read(new Child()); } }`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className.startsWith('demo.')
+    ? { path: 'Types.java', source } : null });
+  jvm.natives.register('demo.Host', 'read', ['Base'], () => jv('int', 7));
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 7);
+});
