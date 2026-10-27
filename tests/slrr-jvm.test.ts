@@ -251,3 +251,29 @@ class Main {
   await jvm.loadClass('demo.Main');
   assert.throws(() => jvm.invoke(jvm.construct('demo.Main', []), 'run'), /Main\.run \(source line 4\): Java method\/native missing: demo\.Main\.missing/);
 });
+
+test('a referenced class resolves from the current package without an import', async () => {
+  const sources = new Map([
+    ['demo/Main.java', 'package demo; class Main { int run() { return City.VALUE; } }'],
+    ['demo/City.java', 'package demo; class City { static int VALUE = 17; }'],
+  ]);
+  const jvm = new SlrrJvm({
+    resolveImport: ({ className }) => {
+      const path = `${className.replaceAll('.', '/')}.java`;
+      return sources.has(path) ? { path, source: sources.get(path) } : null;
+    },
+  });
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 17);
+});
+
+test('static field failures identify the declaring class and source line', async () => {
+  const source = `package demo;
+class Main {
+  static Vector3 CENTER = new Vector3();
+}`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main' ? { path: 'Main.java', source } : null });
+  await jvm.loadClass('demo.Main');
+  assert.throws(() => jvm.get(jv('class', 'demo.Main'), 'CENTER'),
+    /Main\.<fields> \(source line 3\): Java constructor\/native missing: Vector3\(\)/);
+});
