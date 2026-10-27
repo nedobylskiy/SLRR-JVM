@@ -364,6 +364,22 @@ test('a resource literal assigned to an int retains its local resource ID', asyn
   assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'read').value, 0x32);
 });
 
+test('a resource ID retains its pack through int fields and method arguments', async () => {
+  const source = `package demo;
+    class Main {
+      int track = maps.Norisring.t_data:0x102r;
+      int run() { return Host.inspect(track); }
+    }`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main'
+    ? { path: 'Main.java', source } : null });
+  jvm.natives.register('demo.Host', 'inspect', ['int'], ({ args }) => {
+    assert.deepEqual(args[0].resource, { pack: 'maps.Norisring.t_data', id: 0x102 });
+    return jv('int', Number(args[0].value));
+  });
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 0x102);
+});
+
 test('a native reference parameter accepts an interpreted subclass instance', async () => {
   const source = `package demo;
 class Base {}
