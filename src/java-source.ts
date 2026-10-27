@@ -1,6 +1,7 @@
 /** Restricted, parsed Java source interpreter. No eval/Function or ambient JS access. */
-import { floatLiteralBits, parseSource as parseSlrrSource } from 'slrr-jvm-compiler';
+import { parseSource as parseSlrrSource } from 'slrr-jvm-compiler';
 import type { Expr as ParsedExpr, Stmt as ParsedStmt, FloatMode } from 'slrr-jvm-compiler';
+import { floatLiteralBits } from './float-literal.js';
 export interface JavaValue { type: string; value: unknown }
 export const jv = (type: string, value: unknown): JavaValue => ({ type, value });
 export const nil = () => jv('Object', null);

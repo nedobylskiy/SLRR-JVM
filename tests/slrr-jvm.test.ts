@@ -207,3 +207,35 @@ test('new on a host-native class uses its registered constructor and instance me
   await jvm.loadClass('demo.Main');
   assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 10);
 });
+
+test('java.lang native parents and fields resolve implicitly, and arrays expose length', async () => {
+  const source = `package demo; class Child extends NativeBase {
+    Child() { ping(); }
+    int read() { int[] values = new int[3]; return Host.VALUE + values.length; }
+  }`;
+  const jvm = new SlrrJvm({
+    resolveImport: ({ className }) => className === 'demo.Child' ? { path: 'Child.java', source } : null,
+  });
+  let pinged = false;
+  jvm.natives.register('java.lang.NativeBase', '<init>', [], () => jv('void', undefined));
+  jvm.natives.register('java.lang.NativeBase', 'ping', [], () => { pinged = true; return jv('void', undefined); });
+  jvm.natives.registerField('java.lang.Host', 'VALUE', jv('int', 2));
+  await jvm.loadClass('demo.Child');
+  const child = jvm.construct('demo.Child', []);
+  assert.equal(pinged, true);
+  assert.equal(jvm.invoke(child, 'read').value, 5);
+  jvm.set(jv('class', 'java.lang.Host'), 'VALUE', jv('int', 4));
+  assert.equal(jvm.invoke(child, 'read').value, 7);
+});
+
+test('a sibling class in the same source file runs its constructor', async () => {
+  const source = `package demo; class Main {
+    int read() { Goal goal = new Goal(7); return goal.flag; }
+  } class Goal { int flag; Goal(int value) { flag = value; } }`;
+  const jvm = new SlrrJvm({
+    resolveImport: ({ className }) => className === 'demo.Main' ? { path: 'Main.java', source } : null,
+    selectMethods: className => className === 'demo.Main' ? ['read'] : [className.split('.').at(-1)!],
+  });
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'read').value, 7);
+});
