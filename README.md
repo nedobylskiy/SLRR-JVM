@@ -60,6 +60,8 @@ console.log(result.value); // 13
 
 Native methods are **opt-in** host callbacks registered by class, method, and exact argument types. The game session owns these bindings and registers them before loading source classes that import native classes. The interpreter exposes no ambient filesystem, DOM, network, or SLRR engine APIs. Missing imports and native calls raise errors rather than silently succeeding.
 
+Execution errors report the source line of the failing expression within each Java method call, including calls nested inside constructors.
+
 Host-owned static fields can be exposed with `jvm.natives.registerField(className, name, value)`. Source classes can inherit methods registered on a `java.lang` native parent, and Java arrays expose `length`. These are interpreter capabilities; the embedding game engine decides which SLRR native classes and fields to register.
 
 Host-native objects can be created from Java `new` expressions by registering a method named `<init>` for that class. The constructor callback returns a `JavaValue`; subsequent calls on that value dispatch to other registered methods of the same class.

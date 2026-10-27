@@ -239,3 +239,15 @@ test('a sibling class in the same source file runs its constructor', async () =>
   await jvm.loadClass('demo.Main');
   assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'read').value, 7);
 });
+
+test('runtime errors identify the failing expression line', async () => {
+  const source = `package demo;
+class Main {
+  void run() {
+    missing();
+  }
+}`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main' ? { path: 'Main.java', source } : null });
+  await jvm.loadClass('demo.Main');
+  assert.throws(() => jvm.invoke(jvm.construct('demo.Main', []), 'run'), /Main\.run \(source line 4\): Java method\/native missing: demo\.Main\.missing/);
+});
