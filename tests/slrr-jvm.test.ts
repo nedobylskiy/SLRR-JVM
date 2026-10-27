@@ -488,6 +488,17 @@ test('numeric literals narrow to int while variables retain their declared type'
   assert.throws(() => jvm.invoke(main, 'variable'), /Java constructor missing: demo.Counter\(1\)/);
 });
 
+test('SLRR numeric narrowing permits a float variable to call an int-only method', async () => {
+  const source = `package demo; class Main {
+    int take(int value) { return value; }
+    int run() { float value = 1.9; return take(value); }
+  }`;
+  const jvm = new SlrrJvm({ resolveImport: ({ className }) => className === 'demo.Main'
+    ? { path: 'Main.java', source } : null, allowNumericNarrowing: true });
+  await jvm.loadClass('demo.Main');
+  assert.equal(jvm.invoke(jvm.construct('demo.Main', []), 'run').value, 1);
+});
+
 test('a host-resolved resource literal becomes the packed integer in an int array', async () => {
   const source = `package demo; class Palette {
     static int[] colors = new int[1];
