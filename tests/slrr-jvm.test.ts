@@ -446,3 +446,18 @@ test('numeric literals narrow to int while variables retain their declared type'
   assert.equal(jvm.invoke(main, 'direct').value, 10);
   assert.throws(() => jvm.invoke(main, 'variable'), /Java constructor missing: demo.Counter\(1\)/);
 });
+
+test('a host-resolved resource literal becomes the packed integer in an int array', async () => {
+  const source = `package demo; class Palette {
+    static int[] colors = new int[1];
+    Palette() { colors[0] = cars:0x2Ar; }
+    int color() { return colors[0]; }
+  }`;
+  const jvm = new SlrrJvm({
+    resolveImport: ({ className }) => className === 'demo.Palette' ? { path: 'demo/Palette.java', source } : null,
+    resolveResourceId: (resource, path) => path === 'demo/Palette.java' && resource.pack === 'cars'
+      ? (3 << 16) | resource.id : undefined,
+  });
+  await jvm.loadClass('demo.Palette');
+  assert.equal(jvm.invoke(jvm.construct('demo.Palette', []), 'color').value, 196650);
+});
